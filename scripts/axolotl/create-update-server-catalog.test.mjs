@@ -11,6 +11,8 @@ const output = path.join(directory, 'catalog.json')
 const files = [
 	'Axolotl.Launcher-1.9.5-beta.1-1.aarch64.rpm',
 	'Axolotl.Launcher-1.9.5-beta.1-1.aarch64.rpm.sig',
+	'Axolotl.Launcher-1.9.5-beta.1-1.riscv64.rpm',
+	'Axolotl.Launcher-1.9.5-beta.1-1.riscv64.rpm.sig',
 	'Axolotl.Launcher-1.9.5-beta.1-1.x86_64.rpm',
 	'Axolotl.Launcher-1.9.5-beta.1-1.x86_64.rpm.sig',
 	'Axolotl.Launcher_1.9.5-beta.1_aarch64.AppImage',
@@ -25,6 +27,8 @@ const files = [
 	'Axolotl.Launcher_1.9.5-beta.1_amd64.deb.sig',
 	'Axolotl.Launcher_1.9.5-beta.1_arm64.deb',
 	'Axolotl.Launcher_1.9.5-beta.1_arm64.deb.sig',
+	'Axolotl.Launcher_1.9.5-beta.1_riscv64.deb',
+	'Axolotl.Launcher_1.9.5-beta.1_riscv64.deb.sig',
 	'Axolotl.Launcher_1.9.5-beta.1_universal.dmg',
 	'Axolotl.Launcher_1.9.5-beta.1_x64-setup.exe',
 	'Axolotl.Launcher_1.9.5-beta.1_x64-setup.exe.sig',
@@ -77,6 +81,24 @@ try {
 		catalog.artifacts.find((artifact) => artifact.filename.endsWith('_universal.app.tar.gz'))
 			.targetPlatforms,
 		['darwin-aarch64', 'darwin-x86_64'],
+	)
+
+	// The riscv64 deb is the updater artifact for that architecture, so it must
+	// be classified as an updater rather than falling through to the
+	// "unrecognized release artifact" error.
+	assert.deepEqual(
+		catalog.artifacts.find((artifact) => artifact.filename.endsWith('_riscv64.deb'))
+			.targetPlatforms,
+		['linux-riscv64'],
+	)
+	assert.equal(
+		catalog.artifacts.find((artifact) => artifact.filename.endsWith('_riscv64.deb')).kind,
+		'updater',
+	)
+	assert.equal(
+		catalog.artifacts.find((artifact) => artifact.filename.endsWith('1.riscv64.rpm'))
+			.architecture,
+		'riscv64',
 	)
 } finally {
 	fs.rmSync(directory, { recursive: true, force: true })

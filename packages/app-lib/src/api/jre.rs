@@ -1524,11 +1524,19 @@ fn map_platform_to_feed_os() -> &'static str {
     }
 }
 
-fn map_arch_to_feed_arch() -> &'static str {
+/// The JetBrains feed's architecture name for a Rust architecture.
+///
+/// The feed publishes riscv64 and loong64 builds under those spellings. An
+/// unrecognised architecture returns `None` rather than falling back to
+/// `x86_64`, which would have offered the user x86_64 JDKs for a machine that
+/// cannot run them.
+fn feed_arch() -> Option<&'static str> {
     match std::env::consts::ARCH {
-        "x86_64" => "x86_64",
-        "aarch64" => "aarch64",
-        _ => "x86_64",
+        "x86_64" => Some("x86_64"),
+        "aarch64" => Some("aarch64"),
+        "riscv64" => Some("riscv64"),
+        "loongarch64" => Some("loong64"),
+        _ => None,
     }
 }
 
@@ -1537,7 +1545,12 @@ fn map_arch_to_feed_arch() -> &'static str {
 pub async fn list_java_feed_vendors() -> crate::Result<Vec<String>> {
     let feed = fetch_jdk_feed().await?;
     let os = map_platform_to_feed_os();
-    let arch = map_arch_to_feed_arch();
+    let arch = feed_arch().ok_or_else(|| {
+        crate::ErrorKind::OtherError(format!(
+            "No JetBrains JDK feed publishes builds for {}",
+            std::env::consts::ARCH
+        ))
+    })?;
 
     let mut vendors: Vec<String> = feed
         .jdks
@@ -1566,7 +1579,12 @@ pub async fn list_java_feed_versions(
 ) -> crate::Result<Vec<JdkVersionInfo>> {
     let feed = fetch_jdk_feed().await?;
     let os = map_platform_to_feed_os();
-    let arch = map_arch_to_feed_arch();
+    let arch = feed_arch().ok_or_else(|| {
+        crate::ErrorKind::OtherError(format!(
+            "No JetBrains JDK feed publishes builds for {}",
+            std::env::consts::ARCH
+        ))
+    })?;
 
     let mut versions: Vec<JdkVersionInfo> = feed
         .jdks
@@ -1668,7 +1686,12 @@ async fn download_java_from_feed_inner(
 
     let feed = fetch_jdk_feed().await?;
     let os = map_platform_to_feed_os();
-    let arch = map_arch_to_feed_arch();
+    let arch = feed_arch().ok_or_else(|| {
+        crate::ErrorKind::InputError(format!(
+            "No JDK feed publishes builds for {}",
+            std::env::consts::ARCH
+        ))
+    })?;
 
     let entry = feed
         .jdks

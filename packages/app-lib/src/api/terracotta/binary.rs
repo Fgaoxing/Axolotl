@@ -3,6 +3,11 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use tracing::info;
 
+/// Terracotta's release asset name fragment for the running platform.
+///
+/// Terracotta publishes Go-style names, which differ from the launcher's own
+/// architecture spellings: `aarch64` is `arm64` here, and FreeBSD is published
+/// for x86_64 even though the launcher itself is not built for it.
 pub fn terracotta_platform_key() -> &'static str {
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("linux", "x86_64") => "linux-x86_64",

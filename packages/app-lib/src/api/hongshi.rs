@@ -268,17 +268,14 @@ fn hidden_command(path: &Path) -> Command {
 }
 
 pub fn is_supported() -> bool {
-    cfg!(any(
-        all(target_os = "windows", target_arch = "x86_64"),
-        all(
-            target_os = "macos",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ),
-        all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ),
-    ))
+    // RedStone publishes no loongarch64 or riscv64 client, so the helper stays
+    // unavailable there even though the launcher itself builds and runs.
+    matches!(
+        (std::env::consts::OS, std::env::consts::ARCH),
+        ("windows", "x86_64")
+            | ("macos", "x86_64" | "aarch64")
+            | ("linux", "x86_64" | "aarch64")
+    )
 }
 
 fn hongshi_root() -> PathBuf {
@@ -445,6 +442,11 @@ async fn compatible_binary_cancellable(
     compatible
 }
 
+/// The `arch` query value RedStone expects for a Rust architecture.
+///
+/// RedStone publishes `amd64` and `arm64` only, which is why the match does not
+/// consult the shared architecture table: it would report riscv64 and
+/// loongarch64 as valid here even though no client is published for them.
 fn download_endpoint_for(os: &str, architecture: &str) -> eyre::Result<String> {
     let platform = match os {
         "windows" => "windows",

@@ -1,6 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import {
+	architectureForAsset,
+	updaterPlatformsForAsset,
+} from './updater_platforms.mjs'
+
 const [releasePath, tag, outputPath] = process.argv.slice(2)
 
 if (!releasePath || !tag || !outputPath) {
@@ -13,16 +18,8 @@ const version = tag.replace(/^v/, '')
 const release = JSON.parse(fs.readFileSync(releasePath, 'utf8'))
 if (!Array.isArray(release.assets)) throw new Error('Release metadata does not contain an assets array')
 
-function updaterTargets(filename) {
-	if (filename.endsWith('_universal.app.tar.gz')) return ['darwin-aarch64', 'darwin-x86_64']
-	if (filename.endsWith('_aarch64.AppImage.tar.gz')) return ['linux-aarch64']
-	if (filename.endsWith('_amd64.AppImage.tar.gz')) return ['linux-x86_64']
-	if (filename.endsWith('_x64-setup.nsis.zip')) return ['windows-x86_64']
-	return null
-}
-
 function describe(filename) {
-	const targets = updaterTargets(filename)
+	const targets = updaterPlatformsForAsset(filename)
 	if (targets) {
 		return { kind: 'updater', platform: targets[0], targetPlatforms: targets, variant: 'tauri' }
 	}
@@ -54,13 +51,6 @@ function describe(filename) {
 	throw new Error(`Unrecognized release artifact ${filename}`)
 }
 
-function architecture(filename) {
-	if (/universal/i.test(filename)) return 'universal'
-	if (/(aarch64|arm64)/i.test(filename)) return 'aarch64'
-	if (/(amd64|x86_64|x64)/i.test(filename)) return 'x86_64'
-	return null
-}
-
 function digest(asset) {
 	if (typeof asset.digest !== 'string' || !asset.digest.startsWith('sha256:')) {
 		throw new Error(`Release asset ${asset.name} has no SHA-256 digest`)
@@ -75,7 +65,7 @@ const assets = release.assets
 		size: asset.size,
 		sha256: digest(asset),
 		downloadUrl: asset.browser_download_url ?? asset.url,
-		architecture: architecture(asset.name),
+		architecture: architectureForAsset(asset.name),
 		...describe(asset.name),
 	}))
 

@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { updaterTargets } from './updater_platforms.mjs'
+
 const [releasePath, signaturesPath, tag, outputPath] = process.argv.slice(2)
 
 if (!releasePath || !signaturesPath || !tag || !outputPath) {
@@ -16,24 +18,15 @@ if (!Array.isArray(assets)) {
 	throw new Error('Release metadata does not contain an assets array')
 }
 
-const targets = [
-	{
-		platforms: ['darwin-aarch64', 'darwin-x86_64'],
-		assetSuffix: '_universal.app.tar.gz',
-	},
-	{
-		platforms: ['linux-aarch64'],
-		assetSuffix: '_aarch64.AppImage.tar.gz',
-	},
-	{
-		platforms: ['linux-x86_64'],
-		assetSuffix: '_amd64.AppImage.tar.gz',
-	},
-	{
-		platforms: ['windows-x86_64'],
-		assetSuffix: '_x64-setup.nsis.zip',
-	},
-]
+// Each entry pairs the manifest's platform keys with the release asset that
+// serves them. Linux is built per architecture, so its AppImage suffix carries
+// the Debian architecture name; macOS ships one universal binary, and Windows a
+// single installer, so those suffixes describe the packaging rather than a
+// specific CPU.
+//
+// `updater_platforms.mjs` is the single source of this table. The Update Server
+// and the CNB mirror both re-derive the same key set, so they import it too.
+const targets = updaterTargets
 
 const platforms = {}
 

@@ -1,4 +1,5 @@
 //! Theseus utility functions
+pub mod arch;
 pub mod download;
 pub mod download_dns;
 pub mod download_manager;

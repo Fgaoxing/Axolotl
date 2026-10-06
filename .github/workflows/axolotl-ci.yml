@@ -159,6 +159,66 @@ jobs:
           }
           Write-Output "Built native NSIS installer: $($installers[0].Name)"
 
+  # Keeps the cross-compiled architectures building. Without this, nothing in
+  # PR CI would notice a dependency or a build script that breaks riscv64 or
+  # loongarch64, and the release job would fail only once a tag was pushed.
+  cross-arch:
+    name: Cross-compile (${{ matrix.name }})
+    needs: guardrails
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: riscv64
+            arch: riscv64
+            target: riscv64gc-unknown-linux-gnu
+            suite: trixie
+            roots: >-
+              gcc-riscv64-linux-gnu libc6-dev-riscv64-cross binutils-riscv64-linux-gnu
+              libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+          # loongarch64 links but cannot be bundled: tauri-bundler's
+          # `binary_arch` panics on the target triple. It is checked here rather
+          # than in the release matrix so the compile support stays honest.
+          - name: loongarch64
+            arch: loong64
+            target: loongarch64-unknown-linux-gnu
+            suite: sid
+            roots: >-
+              gcc-loongarch64-linux-gnu libc6-dev-loong64-cross binutils-loongarch64-linux-gnu
+              libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+    env:
+      SQLX_OFFLINE: true
+      CROSS_ARCH: ${{ matrix.arch }}
+      CROSS_TARGET: ${{ matrix.target }}
+      CROSS_SUITE: ${{ matrix.suite }}
+      CROSS_ROOTS: ${{ matrix.roots }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+      - uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9 # v6.0.9
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Set up cross sysroot
+        run: |
+          export CROSS_BASE="$RUNNER_TEMP/cross"
+          scripts/axolotl/setup-cross-sysroot.sh \
+            "$CROSS_ARCH" "$CROSS_TARGET" "$CROSS_SUITE" $CROSS_ROOTS
+          cat "$RUNNER_TEMP/cross/$CROSS_ARCH-$CROSS_SUITE/env.sh" >> "$GITHUB_ENV"
+          rustup target add "$CROSS_TARGET"
+      - uses: actions/setup-java@dd6320883cc2b7b3d898c5d895402d970a1b62 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/replace-gradle-mirror
+      - name: Check the launcher compiles for this architecture
+        run: cargo check --package theseus_gui --target "$CROSS_TARGET" --features updater
+
   website:
     needs: guardrails
     runs-on: ubuntu-latest

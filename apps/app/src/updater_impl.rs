@@ -79,14 +79,15 @@ struct AptDebAsset {
 }
 
 fn apt_deb_arch() -> Result<&'static str> {
-    match std::env::consts::ARCH {
-        "x86_64" => Ok("amd64"),
-        "aarch64" => Ok("arm64"),
-        arch => Err(theseus::Error::from(theseus::ErrorKind::OtherError(
-            format!("Unsupported architecture for apt updates: {arch}"),
-        ))
-        .into()),
-    }
+    let arch = std::env::consts::ARCH;
+    theseus::arch::lookup(arch)
+        .map(|target| target.deb_arch)
+        .ok_or_else(|| {
+            theseus::Error::from(theseus::ErrorKind::OtherError(format!(
+                "Unsupported architecture for apt updates: {arch}"
+            )))
+            .into()
+        })
 }
 
 async fn fetch_apt_deb_asset(version: &str) -> Result<AptDebAsset> {
@@ -166,21 +167,61 @@ fn update_channel(channel: &str) -> Result<&str> {
     }
 }
 
+/// The `X-Axolotl-Platform` value the Update Server keys its manifest on.
+///
+/// The key is the OS name paired with the Rust architecture. The set of keys is
+/// fixed by `create-update-manifest.mjs`, which derives the manifest from the
+/// published asset names, so an architecture missing from `UPDATER_PLATFORMS`
+/// would silently never receive an update.
 fn update_platform() -> Result<&'static str> {
-    match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("windows", "x86_64") => Ok("windows-x86_64"),
-        ("linux", "x86_64") => Ok("linux-x86_64"),
-        ("linux", "aarch64") => Ok("linux-aarch64"),
-        ("macos", "x86_64") => Ok("darwin-x86_64"),
-        ("macos", "aarch64") => Ok("darwin-aarch64"),
-        (os, arch) => {
-            Err(theseus::Error::from(theseus::ErrorKind::OtherError(format!(
-                "Unsupported updater platform: {os}-{arch}"
+    let key = format!(
+        "{}-{}",
+        updater_os(std::env::consts::OS)?,
+        std::env::consts::ARCH
+    );
+
+    UPDATER_PLATFORMS
+        .iter()
+        .find(|platform| **platform == key)
+        .copied()
+        .ok_or_else(|| {
+            theseus::Error::from(theseus::ErrorKind::OtherError(format!(
+                "Unsupported updater platform: {key}"
             )))
-            .into())
-        }
+            .into()
+        })
+}
+
+/// The manifest's OS name for a `std::env::consts::OS` value.
+///
+/// macOS is published as a universal binary, so the manifest calls it `darwin`
+/// to match Tauri's own platform naming.
+fn updater_os(os: &str) -> Result<&'static str> {
+    match os {
+        "windows" => Ok("windows"),
+        "linux" => Ok("linux"),
+        "macos" => Ok("darwin"),
+        os => Err(theseus::Error::from(theseus::ErrorKind::OtherError(format!(
+            "Unsupported updater platform: {os}"
+        )))
+        .into()),
     }
 }
+
+/// Every platform key `create-update-manifest.mjs` is expected to produce.
+///
+/// Kept in step with `scripts/axolotl/updater_platforms.mjs`, which the release
+/// workflow uses to build the manifest. loongarch64 is absent because
+/// tauri-bundler cannot produce a bundle for it, so there is no asset to serve
+/// an update from.
+const UPDATER_PLATFORMS: &[&str] = &[
+    "darwin-aarch64",
+    "darwin-x86_64",
+    "linux-aarch64",
+    "linux-riscv64",
+    "linux-x86_64",
+    "windows-x86_64",
+];
 
 fn update_endpoint() -> Result<Url> {
     Url::parse(UPDATE_SERVER_LATEST_URL).map_err(|error| {

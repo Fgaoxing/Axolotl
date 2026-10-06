@@ -93,6 +93,27 @@ jobs:
           - name: Linux arm64
             runner: ubuntu-24.04-arm
             args: --config tauri-release.conf.json --config tauri-updater.conf.json
+          # GitHub has no riscv64 runner, so this cross-compiles against a
+          # Debian riscv64 sysroot.
+          #
+          # `.deb` and `.rpm` only. tauri-bundler's AppImage backend rejects
+          # riscv64 outright with an ArchError, and `linuxdeploy` publishes no
+          # riscv64 build either, so `targets: all` would request appimage and
+          # fail the release. scripts/axolotl/updater_platforms.mjs serves
+          # linux-riscv64 updates from the deb for the same reason.
+          #
+          # loongarch64 cross-compiles and links but has no release entry:
+          # tauri-bundler's `binary_arch` panics on the target triple, so it
+          # cannot produce a bundle at all.
+          - name: Linux riscv64
+            runner: ubuntu-24.04
+            args: --target riscv64gc-unknown-linux-gnu --bundles deb,rpm --config tauri-release.conf.json --config tauri-updater.conf.json
+            target: riscv64gc-unknown-linux-gnu
+            crossArch: riscv64
+            crossSuite: trixie
+            crossRoots: >-
+              gcc-riscv64-linux-gnu libc6-dev-riscv64-cross binutils-riscv64-linux-gnu
+              libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
           - name: Windows x64
             runner: windows-2025
             args: --config tauri-release.conf.json --config tauri-modern.conf.json --config tauri-updater.conf.json
@@ -148,9 +169,35 @@ jobs:
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
+      - name: Set up cross sysroot
+        if: matrix.target
+        env:
+          CROSS_TARGET: ${{ matrix.target }}
+          CROSS_ARCH: ${{ matrix.crossArch }}
+          CROSS_SUITE: ${{ matrix.crossSuite }}
+          CROSS_ROOTS: ${{ matrix.crossRoots }}
+        run: |
+          # CROSS_BASE selects where the sysroot is unpacked; env.sh below is
+          # written relative to it so the same values work locally and in CI.
+          export CROSS_BASE="$RUNNER_TEMP/cross"
+          scripts/axolotl/setup-cross-sysroot.sh \
+            "$CROSS_ARCH" "$CROSS_TARGET" "$CROSS_SUITE" $CROSS_ROOTS
+          cat "$RUNNER_TEMP/cross/$CROSS_ARCH-$CROSS_SUITE/env.sh" >> "$GITHUB_ENV"
+          rustup target add "$CROSS_TARGET"
+
       - name: Install Linux dependencies
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && !matrix.target
         run: sudo apt-get -o Acquire::ForceIPv4=true update && sudo apt-get -o Acquire::ForceIPv4=true install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - name: Install cross build dependencies
+        if: matrix.target
+        run: |
+          sudo apt-get -o Acquire::ForceIPv4=true update
+          # Tauri's AppImage bundler runs these host tools to assemble the
+          # AppImage. They are amd64 binaries on this runner, which is correct:
+          # only the launcher's own output is cross-compiled.
+          sudo apt-get -o Acquire::ForceIPv4=true install -y \
+            file xz-utils zstd patchelf desktop-file-utils appstream xdg-utils
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -175,6 +222,8 @@ jobs:
         with:
           projectPath: apps/app
           tauriScript: pnpm tauri
+          # tauri-action passes args straight to `tauri build`, so a matrix entry
+          # only needs to name the extra flags its target requires.
           args: ${{ matrix.args }}
           tagName: ${{ github.ref_name }}
           releaseName: Axolotl Launcher ${{ github.ref_name }}

@@ -40,6 +40,7 @@ pub use state::db::{
 };
 pub use state::{DirectoryInfo, State};
 pub use storage::*;
+pub use util::arch;
 pub use util::fetch::{DownloadReason, build_proxied_client};
 pub use util::file_lock::{LockingProcess, get_locking_processes};
 pub use util::platform::is_process_elevated;

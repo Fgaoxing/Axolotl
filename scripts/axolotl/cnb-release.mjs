@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { requiredUpdaterPlatforms } from './updater_platforms.mjs'
+
 const [command, tag, outputDirectory] = process.argv.slice(2)
 const apiEndpoint = (process.env.CNB_API_ENDPOINT || 'https://api.cnb.cool').replace(/\/$/, '')
 const repo = process.env.CNB_REPO_SLUG || 'axlmc/Axolotl'
@@ -233,13 +235,7 @@ async function mirrorGithubAssets(release, githubRelease) {
 }
 
 function createCnbManifest(githubManifest, mirroredNames) {
-	const requiredPlatforms = [
-		'darwin-aarch64',
-		'darwin-x86_64',
-		'linux-aarch64',
-		'linux-x86_64',
-		'windows-x86_64',
-	]
+	const requiredPlatforms = requiredUpdaterPlatforms()
 	const platforms = {}
 	for (const platform of requiredPlatforms) {
 		const update = githubManifest.platforms?.[platform]
