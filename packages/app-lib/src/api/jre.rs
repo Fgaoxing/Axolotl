@@ -744,6 +744,13 @@ fn mojang_runtime_component(java_version: u32) -> Option<&'static str> {
     }
 }
 
+/// The Mojang runtime manifest platform for the running platform.
+///
+/// Mojang publishes runtimes only for the architectures Mojang itself ships
+/// games on, so riscv64 and loongarch64 return `None` and the caller falls
+/// back to a user-supplied or third-party JRE. The `windows`/`linux` `x86` arms
+/// are for the 32-bit manifests Mojang still serves; the launcher is not
+/// published for 32-bit x86, so they are unreachable in a shipped build.
 fn mojang_runtime_platform() -> Option<&'static str> {
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("windows", "x86_64") => Some("windows-x64"),

@@ -47,11 +47,6 @@ pub const ARCH_TARGETS: &[ArchTarget] = &[
 		java_arch: "aarch64",
 	},
 	ArchTarget {
-		rust_arch: "x86",
-		deb_arch: "i386",
-		java_arch: "x86",
-	},
-	ArchTarget {
 		rust_arch: "riscv64",
 		deb_arch: "riscv64",
 		java_arch: "riscv64",
@@ -121,11 +116,16 @@ mod tests {
 
 	#[test]
 	fn lookup_rejects_unknown_architectures() {
-		// mips has no Rust target and no webview, so it must not be claimed.
+		// mips has no Rust target from rustup and no webview, so it must not be
+		// claimed. s390x and powerpc64 have Rust targets but no JRE, so the
+		// launcher could not launch Minecraft on them either.
 		assert!(!is_supported("mips"));
 		assert!(!is_supported("mips64"));
 		assert!(!is_supported("s390x"));
 		assert!(!is_supported("powerpc64"));
+		assert!(!is_supported("powerpc64le"));
+		assert!(!is_supported("armv7"));
+		assert!(!is_supported("x86"));
 		assert!(!is_supported(""));
 	}
 
@@ -160,7 +160,6 @@ mod tests {
 		let deb = |arch: &str| lookup(arch).expect("listed target").deb_arch;
 		assert_eq!(deb("x86_64"), "amd64");
 		assert_eq!(deb("aarch64"), "arm64");
-		assert_eq!(deb("x86"), "i386");
 		assert_eq!(deb("riscv64"), "riscv64");
 		assert_eq!(deb("loongarch64"), "loong64");
 	}

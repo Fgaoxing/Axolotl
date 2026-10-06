@@ -180,13 +180,20 @@ fn update_platform() -> Result<&'static str> {
         std::env::consts::ARCH
     );
 
+    if !theseus::arch::is_supported(std::env::consts::ARCH) {
+        return Err(theseus::Error::from(theseus::ErrorKind::OtherError(
+            format!("Unsupported updater architecture: {key}"),
+        ))
+        .into());
+    }
+
     UPDATER_PLATFORMS
         .iter()
         .find(|platform| **platform == key)
         .copied()
         .ok_or_else(|| {
             theseus::Error::from(theseus::ErrorKind::OtherError(format!(
-                "Unsupported updater platform: {key}"
+                "No published update for {key}"
             )))
             .into()
         })
