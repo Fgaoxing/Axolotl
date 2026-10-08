@@ -51,11 +51,10 @@ pub const ARCH_TARGETS: &[ArchTarget] = &[
 		deb_arch: "riscv64",
 		java_arch: "riscv64",
 	},
-	// Cross-compiles and links, but tauri-bundler's `binary_arch` panics on the
-	// loongarch64 target triple, so no bundle and therefore no release asset can
-	// be produced for it. Kept here because the launcher must still run on the
-	// architecture; it is deliberately absent from the release build matrix and
-	// the updater manifest until tauri-bundler supports it.
+	// tauri-bundler's `binary_arch` panics on the loongarch64 target triple, so
+	// these two are packaged by scripts/axolotl/bundle-linux.mjs instead of the
+	// bundler. Listed here because the launcher must run on them, and their
+	// package and updater names come from the same table.
 	ArchTarget {
 		rust_arch: "loongarch64",
 		deb_arch: "loong64",

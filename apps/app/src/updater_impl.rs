@@ -218,13 +218,14 @@ fn updater_os(os: &str) -> Result<&'static str> {
 /// Every platform key `create-update-manifest.mjs` is expected to produce.
 ///
 /// Kept in step with `scripts/axolotl/updater_platforms.mjs`, which the release
-/// workflow uses to build the manifest. loongarch64 is absent because
-/// tauri-bundler cannot produce a bundle for it, so there is no asset to serve
-/// an update from.
+/// workflow uses to build the manifest. riscv64 and loongarch64 are packaged by
+/// `scripts/axolotl/bundle-linux.mjs` rather than tauri-bundler, which cannot
+/// produce a bundle for either.
 const UPDATER_PLATFORMS: &[&str] = &[
     "darwin-aarch64",
     "darwin-x86_64",
     "linux-aarch64",
+    "linux-loongarch64",
     "linux-riscv64",
     "linux-x86_64",
     "windows-x86_64",

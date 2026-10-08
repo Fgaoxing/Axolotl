@@ -14,7 +14,7 @@ test('every Linux target is served by a distinct asset', () => {
 	)
 	assert.deepEqual(
 		linux.map((target) => target.platforms[0]),
-		['linux-x86_64', 'linux-aarch64', 'linux-riscv64'],
+		['linux-x86_64', 'linux-aarch64', 'linux-riscv64', 'linux-loongarch64'],
 	)
 	// A repeated suffix would make two architectures resolve to the same
 	// release asset, so the manifest would point one of them at another
@@ -22,25 +22,36 @@ test('every Linux target is served by a distinct asset', () => {
 	assert.equal(new Set(linux.map((target) => target.assetSuffix)).size, linux.length)
 })
 
-test('riscv64 is served by its deb because it has no AppImage', () => {
-	// tauri-bundler rejects riscv64 in its AppImage backend, so the release
-	// build produces only a deb for that architecture. Looking for an AppImage
-	// would fail the release on a missing asset.
-	const riscv = updaterTargets().find((target) =>
-		target.platforms.includes('linux-riscv64'),
-	)
-	assert.equal(riscv.assetSuffix, '_riscv64.deb')
-	assert.deepEqual(updaterPlatformsForAsset('Axolotl.Launcher_1.9.7_riscv64.deb'), [
-		'linux-riscv64',
-	])
-	assert.equal(updaterPlatformsForAsset('Axolotl.Launcher_1.9.7_riscv64.AppImage.tar.gz'), null)
+test('riscv64 and loongarch64 are served by their debs', () => {
+	// Neither has an AppImage: the format embeds a prebuilt runtime and none
+	// exists for these architectures. Looking for an AppImage would fail the
+	// release on a missing asset.
+	for (const [platform, suffix] of [
+		['linux-riscv64', '_riscv64.deb'],
+		['linux-loongarch64', '_loong64.deb'],
+	]) {
+		const target = updaterTargets().find((candidate) => candidate.platforms.includes(platform))
+		assert.equal(target.assetSuffix, suffix)
+		assert.deepEqual(updaterPlatformsForAsset(`Axolotl.Launcher_1.9.7${suffix}`), [platform])
+		assert.equal(
+			updaterPlatformsForAsset(`Axolotl.Launcher_1.9.7${suffix.replace('.deb', '.AppImage.tar.gz')}`),
+			null,
+		)
+	}
 })
 
-test('loongarch64 is not served because tauri-bundler cannot bundle it', () => {
-	// The launcher cross-compiles for loongarch64, but tauri-bundler's
-	// `binary_arch` panics on the triple, so no release asset exists. Claiming
-	// the platform here would make every release fail manifest verification.
-	assert.ok(!requiredUpdaterPlatforms().includes('linux-loongarch64'))
+test('every Linux target is served by a distinct asset', () => {
+	const linux = updaterTargets().filter((target) =>
+		target.platforms.some((platform) => platform.startsWith('linux-')),
+	)
+	assert.deepEqual(
+		linux.map((target) => target.platforms[0]),
+		['linux-x86_64', 'linux-aarch64', 'linux-riscv64', 'linux-loongarch64'],
+	)
+	// A repeated suffix would make two architectures resolve to the same
+	// release asset, so the manifest would point one of them at another
+	// architecture's binary.
+	assert.equal(new Set(linux.map((target) => target.assetSuffix)).size, linux.length)
 })
 
 test('the required platform list matches the target table', () => {

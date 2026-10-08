@@ -11,22 +11,21 @@
 // manifest OS name (`darwin` for macOS) joined to the Rust architecture name.
 
 // Linux entries pair a manifest platform key with the release asset that serves
-// it and the architecture name that asset's filename carries.
+// it.
 //
 // The asset suffix differs per architecture. x86_64 and aarch64 are served by
 // an AppImage, which tauri-bundler names with its own spelling (`aarch64`,
-// while the deb for the same build is `arm64`). riscv64 has no AppImage at all:
-// tauri-bundler's AppImage backend rejects the architecture, so that build is
-// served by its `.deb` instead.
+// while the deb for the same build is `arm64`).
 //
-// loongarch64 is deliberately absent. The launcher cross-compiles and links for
-// it, but tauri-bundler's `binary_arch` panics on the target triple, so no
-// bundle can be produced and there is no asset to serve updates from. Add it
-// here once tauri-bundler supports the architecture.
+// riscv64 and loongarch64 are served by their `.deb`, for different reasons.
+// Neither has an AppImage: the format embeds a prebuilt runtime interpreter and
+// none is published for these architectures. loongarch64 additionally cannot go
+// through tauri-bundler at all, so bundle-linux.mjs packages it. See that file.
 const linuxTargets = [
 	{ platform: 'linux-x86_64', assetSuffix: '_amd64.AppImage.tar.gz' },
 	{ platform: 'linux-aarch64', assetSuffix: '_aarch64.AppImage.tar.gz' },
 	{ platform: 'linux-riscv64', assetSuffix: '_riscv64.deb' },
+	{ platform: 'linux-loongarch64', assetSuffix: '_loong64.deb' },
 ]
 
 /**

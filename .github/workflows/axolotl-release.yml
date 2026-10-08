@@ -93,26 +93,41 @@ jobs:
           - name: Linux arm64
             runner: ubuntu-24.04-arm
             args: --config tauri-release.conf.json --config tauri-updater.conf.json
-          # GitHub has no riscv64 runner, so this cross-compiles against a
-          # Debian riscv64 sysroot.
+          # riscv64 and loongarch64 cross-compile against a Debian sysroot,
+          # because GitHub has no runner for either.
           #
-          # `.deb` and `.rpm` only. tauri-bundler's AppImage backend rejects
-          # riscv64 outright with an ArchError, and `linuxdeploy` publishes no
-          # riscv64 build either, so `targets: all` would request appimage and
-          # fail the release. scripts/axolotl/updater_platforms.mjs serves
-          # linux-riscv64 updates from the deb for the same reason.
+          # Both build with `--no-bundle` and are then packaged by
+          # scripts/axolotl/bundle-linux.mjs. tauri-bundler cannot do it:
+          # its `Arch` enum has no LoongArch variant and `binary_arch` panics
+          # on an unrecognised triple, and its AppImage backend rejects
+          # riscv64 with an ArchError. The CLI is a prebuilt binary, so the
+          # enum cannot be patched from this repository.
           #
-          # loongarch64 cross-compiles and links but has no release entry:
-          # tauri-bundler's `binary_arch` panics on the target triple, so it
-          # cannot produce a bundle at all.
+          # AppImage is not produced for either: the format embeds a prebuilt
+          # runtime and linuxdeploy publishes one only for x86_64, i386, armhf
+          # and aarch64. scripts/axolotl/updater_platforms.mjs serves
+          # linux-riscv64 updates from its deb for that reason.
           - name: Linux riscv64
             runner: ubuntu-24.04
-            args: --target riscv64gc-unknown-linux-gnu --bundles deb,rpm --config tauri-release.conf.json --config tauri-updater.conf.json
+            args: --target riscv64gc-unknown-linux-gnu --no-bundle --config tauri-release.conf.json --config tauri-updater.conf.json
             target: riscv64gc-unknown-linux-gnu
+            rustArch: riscv64
             crossArch: riscv64
             crossSuite: trixie
             crossRoots: >-
               gcc-riscv64-linux-gnu libc6-dev-riscv64-cross binutils-riscv64-linux-gnu
+              libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+          - name: Linux loongarch64
+            runner: ubuntu-24.04
+            args: --target loongarch64-unknown-linux-gnu --no-bundle --config tauri-release.conf.json --config tauri-updater.conf.json
+            target: loongarch64-unknown-linux-gnu
+            rustArch: loongarch64
+            crossArch: loong64
+            # loong64 only becomes an official Debian architecture in Debian 14,
+            # so its webkit2gtk stack is published from sid.
+            crossSuite: sid
+            crossRoots: >-
+              gcc-loongarch64-linux-gnu libc6-dev-loong64-cross binutils-loongarch64-linux-gnu
               libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
           - name: Windows x64
             runner: windows-2025
@@ -233,6 +248,24 @@ jobs:
           includeUpdaterJson: false
           updaterJsonPreferNsis: true
           retryAttempts: 2
+
+      - name: Package cross-compiled Linux targets
+        if: matrix.rustArch
+        env:
+          RUST_ARCH: ${{ matrix.rustArch }}
+          CROSS_TARGET: ${{ matrix.target }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          # `tauri build --no-bundle` produced the executable; tauri-bundler
+          # could not package it. Package, sign and upload it here so the
+          # release carries the same signed asset the other targets get.
+          node scripts/axolotl/package-linux-target.mjs \
+            --target "$CROSS_TARGET" \
+            --arch "$RUST_ARCH" \
+            --tag "${{ github.ref_name }}"
 
       - name: Publish Windows distribution variants
         if: runner.os == 'Windows'

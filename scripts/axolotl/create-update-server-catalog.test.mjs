@@ -29,6 +29,8 @@ const files = [
 	'Axolotl.Launcher_1.9.5-beta.1_arm64.deb.sig',
 	'Axolotl.Launcher_1.9.5-beta.1_riscv64.deb',
 	'Axolotl.Launcher_1.9.5-beta.1_riscv64.deb.sig',
+	'Axolotl.Launcher_1.9.5-beta.1_loong64.deb',
+	'Axolotl.Launcher_1.9.5-beta.1_loong64.deb.sig',
 	'Axolotl.Launcher_1.9.5-beta.1_universal.dmg',
 	'Axolotl.Launcher_1.9.5-beta.1_x64-setup.exe',
 	'Axolotl.Launcher_1.9.5-beta.1_x64-setup.exe.sig',
@@ -83,17 +85,24 @@ try {
 		['darwin-aarch64', 'darwin-x86_64'],
 	)
 
-	// The riscv64 deb is the updater artifact for that architecture, so it must
-	// be classified as an updater rather than falling through to the
-	// "unrecognized release artifact" error.
-	assert.deepEqual(
-		catalog.artifacts.find((artifact) => artifact.filename.endsWith('_riscv64.deb'))
-			.targetPlatforms,
-		['linux-riscv64'],
-	)
+	// The riscv64 and loongarch64 debs are the updater artifacts for those
+	// architectures, so they must be classified as updaters rather than
+	// falling through to the "unrecognized release artifact" error.
+	for (const [suffix, platform] of [
+		['_riscv64.deb', 'linux-riscv64'],
+		['_loong64.deb', 'linux-loongarch64'],
+	]) {
+		const artifact = catalog.artifacts.find((candidate) =>
+			candidate.filename.endsWith(suffix),
+		)
+		assert.deepEqual(artifact.targetPlatforms, [platform])
+		assert.equal(artifact.kind, 'updater')
+	}
+
 	assert.equal(
-		catalog.artifacts.find((artifact) => artifact.filename.endsWith('_riscv64.deb')).kind,
-		'updater',
+		catalog.artifacts.find((artifact) => artifact.filename.endsWith('_loong64.deb'))
+			.architecture,
+		'loongarch64',
 	)
 	assert.equal(
 		catalog.artifacts.find((artifact) => artifact.filename.endsWith('1.riscv64.rpm'))

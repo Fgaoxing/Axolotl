@@ -172,16 +172,18 @@ jobs:
         include:
           - name: riscv64
             arch: riscv64
+            rustArch: riscv64
             target: riscv64gc-unknown-linux-gnu
             suite: trixie
             roots: >-
               gcc-riscv64-linux-gnu libc6-dev-riscv64-cross binutils-riscv64-linux-gnu
               libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
-          # loongarch64 links but cannot be bundled: tauri-bundler's
-          # `binary_arch` panics on the target triple. It is checked here rather
-          # than in the release matrix so the compile support stays honest.
+          # loongarch64 cannot be bundled by tauri-bundler, whose `binary_arch`
+          # panics on the target triple. This job only compiles; the release
+          # matrix packages it with scripts/axolotl/bundle-linux.mjs.
           - name: loongarch64
             arch: loong64
+            rustArch: loongarch64
             target: loongarch64-unknown-linux-gnu
             suite: sid
             roots: >-
@@ -218,6 +220,20 @@ jobs:
       - uses: ./.github/actions/replace-gradle-mirror
       - name: Check the launcher compiles for this architecture
         run: cargo check --package theseus_gui --target "$CROSS_TARGET" --features updater
+      - name: Check a package can be built for this architecture
+        # A compile-only check would pass even if the packaging step were broken,
+        # so build the real executable and package it. This runs without a
+        # signing key, so only packaging is verified, not the upload.
+        env:
+          CROSS_TARGET: ${{ matrix.target }}
+          CROSS_ARCH: ${{ matrix.arch }}
+          CROSS_RUST_ARCH: ${{ matrix.rustArch }}
+        run: |
+          cargo build --release --package theseus_gui --target "$CROSS_TARGET" --features updater
+          node scripts/axolotl/verify-linux-package.mjs \
+            --target "$CROSS_TARGET" \
+            --arch "$CROSS_RUST_ARCH" \
+            --version "$(node -p "require('./apps/app-frontend/package.json').version")"
 
   website:
     needs: guardrails
